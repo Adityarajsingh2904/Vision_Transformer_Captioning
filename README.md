@@ -1,25 +1,25 @@
 
-# 🧠 CapFormer – Image Captioning with Vision Transformers
+# 🧠 Vision_Transformer_Captioning – Image Captioning with Vision Transformers
 
-**CapFormer** is a deep learning pipeline for generating descriptive captions from images using a Vision Transformer-based architecture.  
+**Vision_Transformer_Captioning** is a deep learning pipeline for generating descriptive captions from images using a Vision Transformer-based architecture.  
 It combines object detection with transformer-based language modeling to generate human-like textual descriptions from visual data.
 
 ---
 
 ## 🏗️ Key Features
 
-- 🖼️ Object detector training via `train_detector.py`
+- 📸 Object detector training via `train_detector.py`
 - 🧾 Image caption generation using `train_caption.py`
-- 🎯 Evaluation support for both COCO and NoCaps datasets
-- ⚙️ Flexible scripts for offline/online inference
-- 🧪 Includes benchmarking and reproducibility support
+- 🧪 Evaluation support for both COCO and NoCaps datasets
+- 🔁 Flexible scripts for offline/online inference
+- 📊 Includes benchmarking and reproducibility support
 
 ---
 
 ## 📂 Project Structure
 
 ```
-TransForVision/
+Vision_Transformer_Captioning/
 ├── train_detector.py         # Train object detection model
 ├── train_caption.py          # Train transformer-based captioning model
 ├── eval_caption.py           # Evaluate captioning performance
@@ -43,8 +43,8 @@ TransForVision/
 ### Installation
 
 ```bash
-git clone https://github.com/Adityarajsingh2904/CapFormer.git
-cd CapFormer
+git clone https://github.com/Adityarajsingh2904/Vision_Transformer_Captioning.git
+cd Vision_Transformer_Captioning
 pip install -r requirements.txt
 ```
 
