@@ -50,24 +50,37 @@ cd Vision_Transformer_Captioning
 pip install -r requirements.txt
 ```
 
+### Retrieve configs and dataset utilities
+
+The training scripts rely on configuration files under `configs/` and dataloader
+code inside `datasets/`. These directories are omitted here for brevity. Clone
+the original repository and copy them into this folder so that paths like
+`configs/caption/coco_config.yaml` resolve correctly:
+
+```bash
+git clone https://github.com/Adityarajsingh2904/Vision_Transformer_Captioning.git full_repo
+cp -r full_repo/configs ./configs
+cp -r full_repo/datasets ./datasets
+```
+
 ## Training
 
 ```bash
-python train_caption.py --cfg-path configs/coco_config.yaml
+python train_caption.py
 ```
-This command trains the Vision Transformer-based captioning model using the COCO dataset. Ensure dataset and config files are correctly placed.
+This command trains the Vision Transformer-based captioning model using the COCO dataset. Hydra will automatically load `configs/caption/coco_config.yaml` once the `configs/` folder has been copied.
 
 ## Inference
 
 ```bash
-python inference_caption.py --image path/to/image.jpg
+python inference_caption.py img_path=path/to/image.jpg
 ```
-This runs inference on a single image and outputs the generated caption. You can modify the output directory and checkpoint path inside the script or via config if supported.
+This runs inference on a single image and outputs the generated caption. You can modify the output directory and checkpoint path inside the config or via Hydra command-line overrides.
 
 ## Evaluation
 
 ```bash
-python eval_caption.py --split val
+python eval_caption.py split=val
 ```
 Evaluates the model using standard metrics (BLEU, CIDEr, etc.) on the validation split.
 
@@ -92,7 +105,7 @@ python train_caption.py
 ### Inference
 
 ```bash
-python inference_caption.py --image_path path/to/image.jpg
+python inference_caption.py img_path=path/to/image.jpg
 ```
 
 ### Evaluate
