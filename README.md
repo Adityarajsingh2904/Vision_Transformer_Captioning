@@ -13,6 +13,8 @@ It combines object detection with transformer-based language modeling to generat
 - 🧪 Evaluation support for both COCO and NoCaps datasets
 - 🔁 Flexible scripts for offline/online inference
 - 📊 Includes benchmarking and reproducibility support
+- 🤖 GPT-based caption fluency scoring utility
+- 🖼️ Streamlit app for interactive caption viewing
 
 ---
 
@@ -74,6 +76,18 @@ python inference_caption.py --image_path path/to/image.jpg
 
 ```bash
 python eval_caption.py
+```
+
+### GPT Caption Fluency Evaluation
+
+```bash
+python gpt_caption_evaluator.py captions.txt --api_key YOUR_OPENAI_KEY
+```
+
+### Streamlit Caption Viewer
+
+```bash
+streamlit run caption_viewer.py
 ```
 
 ---
