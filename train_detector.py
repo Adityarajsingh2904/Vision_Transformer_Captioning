@@ -2,6 +2,7 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 from hydra.core.hydra_config import HydraConfig
 
+import os
 import random
 import numpy as np
 import torch
@@ -21,26 +22,28 @@ from engine.hooks import *
 from engine.det_solver import Trainer, Valider
 
 
-def build_optimizers_schedulers(model, config):
-    if hasattr(model.backbone, 'no_weight_decay'):
+def build_optimizers(model, config):
+    """Create optimizer objects for detector training."""
+    if hasattr(model.backbone, "no_weight_decay"):
         skip = model.backbone.no_weight_decay()
     else:
-        skip = ['query_embed']
+        skip = ["query_embed"]
+
     head = []
     det_no_decay = []
     backbone_decay = []
     backbone_no_decay = []
     sp_params = []
-    sp_names = getattr(config.optimizer, 'sp_names', [])
+    sp_names = getattr(config.optimizer, "sp_names", [])
 
     for name, param in model.named_parameters():
         if ("backbone" not in name and param.requires_grad) and not any(ns in name for ns in sp_names):
-            if len(param.shape) == 1 or name.endswith(".bias") or name.split('.')[-1] in skip:
+            if len(param.shape) == 1 or name.endswith(".bias") or name.split(".")[-1] in skip:
                 det_no_decay.append(param)
             else:
                 head.append(param)
         if "backbone" in name and param.requires_grad and not any(ns in name for ns in sp_names):
-            if len(param.shape) == 1 or name.endswith(".bias") or name.split('.')[-1] in skip:
+            if len(param.shape) == 1 or name.endswith(".bias") or name.split(".")[-1] in skip:
                 backbone_no_decay.append(param)
             else:
                 backbone_decay.append(param)
@@ -49,44 +52,161 @@ def build_optimizers_schedulers(model, config):
             sp_params.append(param)
 
     param_dicts = [
-        {
-            "params": head
-        },
-        {
-            "params": det_no_decay,
-            "weight_decay": 0.,
-            "lr": config.optimizer.lr,
-        },
+        {"params": head},
+        {"params": det_no_decay, "weight_decay": 0.0, "lr": config.optimizer.lr},
         {
             "params": backbone_no_decay,
-            "weight_decay": 0.,
-            "lr": config.optimizer.lr_backbone
+            "weight_decay": 0.0,
+            "lr": config.optimizer.lr_backbone,
         },
-        {
-            "params": backbone_decay,
-            "lr": config.optimizer.lr_backbone
-        },
+        {"params": backbone_decay, "lr": config.optimizer.lr_backbone},
     ]
 
-    # print the total number of trainable params.
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print('num of total trainable prams:' + str(n_parameters))
+    print("num of total trainable prams:" + str(n_parameters))
 
-    optimizers = [torch.optim.AdamW(param_dicts, lr=config.optimizer.lr, weight_decay=config.optimizer.weight_decay)]
-    lr_schedulers = [
-        MultiStepLR(optimizers[0], config.optimizer.lr_drop_epochs, verbose=True, gamma=config.optimizer.decay_rate)
+    optimizers = [
+        torch.optim.AdamW(
+            param_dicts, lr=config.optimizer.lr, weight_decay=config.optimizer.weight_decay
+        )
     ]
     if len(sp_params) > 0:
-        sp_optimizer = torch.optim.AdamW(sp_params,
-                                         weight_decay=config.optimizer.weight_decay,
-                                         lr=config.optimizer.sp_lr)
+        sp_optimizer = torch.optim.AdamW(
+            sp_params,
+            weight_decay=config.optimizer.weight_decay,
+            lr=config.optimizer.sp_lr,
+        )
         optimizers.append(sp_optimizer)
-        lr_schedulers.append(
-            MultiStepLR(sp_optimizer,
-                        config.optimizer.sp_lr_drop_epochs,
-                        verbose=True,
-                        gamma=config.optimizer.decay_rate))
-    return optimizers, lr_schedulers
+
+    return optimizers
+
+
+def build_schedulers(optimizers, config):
+    """Create LR schedulers for provided optimizers."""
+    schedulers = [
+        MultiStepLR(
+            optimizers[0],
+            config.optimizer.lr_drop_epochs,
+            verbose=True,
+            gamma=config.optimizer.decay_rate,
+        )
+    ]
+
+    if len(optimizers) > 1:
+        schedulers.append(
+            MultiStepLR(
+                optimizers[1],
+                config.optimizer.sp_lr_drop_epochs,
+                verbose=True,
+                gamma=config.optimizer.decay_rate,
+            )
+        )
+
+    return schedulers
+
+
+def build_optimizers_schedulers(model, config):
+    """Backward compatibility wrapper returning optimizers and schedulers."""
+    optimizers = build_optimizers(model, config)
+    schedulers = build_schedulers(optimizers, config)
+    return optimizers, schedulers
+
+
+def train_detector_model(
+    model,
+    criterion,
+    postprocessors,
+    optimizers,
+    schedulers,
+    train_sampler,
+    train_loader,
+    valid_loaders,
+    rank,
+    device,
+    start_epoch,
+    config,
+):
+    """Training loop for detector model."""
+
+    print("create trainers")
+    trainer = Trainer(
+        model,
+        train_loader,
+        optimizers,
+        criterion,
+        device=device,
+        max_norm=config.optimizer.clip_max_norm,
+        eval_every_iters=config.exp.eval_every_iters,
+    )
+    validers = {
+        data_name: Valider(
+            model,
+            valid_loaders[data_name],
+            optimizers,
+            criterion,
+            postprocessors,
+            device=device,
+            rank=rank,
+            data_name=data_name,
+        )
+        for data_name in valid_loaders
+    }
+
+    excluded_keys = ["bbox"]
+    for name in ["loss_bbox", "loss_giou", "loss_ce"]:
+        for idx in range(6):
+            excluded_keys.append(f"{name}_{idx}")
+
+    train_hooks = [ProgressHook(name="train", excluded_keys=excluded_keys)]
+    valid_hooks = {
+        data_name: [ProgressHook(name=data_name, excluded_keys=excluded_keys)]
+        for data_name in validers
+    }
+
+    if rank == 0:
+        train_hooks += [
+            TensorboardHook(name="train", save_dir="./", log_every_step=100),
+            TextLoggingHook(name="train", save_dir="./"),
+            CheckpointHook(
+                save_every_epochs=getattr(config.exp, "save_every_epochs", 1),
+                save_every_iters=-1,
+                save_dir="./",
+                args=config,
+            ),
+        ]
+        for data_name in valid_hooks:
+            valid_hooks[data_name] += [
+                TensorboardHook(name=data_name, save_dir="./", log_every_step=100),
+                TextLoggingHook(name=data_name, save_dir="./"),
+            ]
+
+    trainer.set_validers(validers)
+    trainer.register_hooks(train_hooks)
+    for data_name, valider in validers.items():
+        valider.register_hooks(valid_hooks[data_name])
+
+    if rank == 0:
+        trainer.hooks[trainer.hook_name2idx["TextLoggingHook"]].write(
+            OmegaConf.to_yaml(config)
+        )
+    if getattr(config.exp, "eval", False):
+        for data_name, valider in validers.items():
+            print(f"Evaluate {data_name}...")
+            valider.run_epoch(0)
+        return
+
+    print("start training..")
+    for lr_scheduler in schedulers:
+        lr_scheduler.step()
+    for epoch in range(start_epoch, config.optimizer.num_epochs):
+        train_sampler.set_epoch(epoch)
+        trainer.run_epoch(epoch)
+        for data_name, valider in validers.items():
+            print(f"Evaluate {data_name:<10} at epoch {epoch} ...")
+            valider.run_epoch(epoch)
+
+        for lr_scheduler in schedulers:
+            lr_scheduler.step()
 
 
 def main(gpu, config, overrides):
@@ -175,84 +295,33 @@ def main(gpu, config, overrides):
                               num_workers=config.optimizer.num_workers,
                               pin_memory=True)
     valid_loaders = {
-        k: DataLoader(dataset,
-                      config.optimizer.batch_size,
-                      sampler=valid_samplers[k],
-                      prefetch_factor=2,
-                      drop_last=False,
-                      collate_fn=misc.collate_fn,
-                      num_workers=config.optimizer.num_workers,
-                      pin_memory=True) for k, dataset in valid_datasets.items()
-    }
-    print("create trainers")
-    trainer = Trainer(model,
-                      train_loader,
-                      optimizers,
-                      criterion,
-                      device=device,
-                      max_norm=config.optimizer.clip_max_norm,
-                      eval_every_iters=config.exp.eval_every_iters)
-    validers = {
-        data_name: Valider(
-            model,
-            valid_loaders[data_name],
-            optimizers,
-            criterion,
-            postprocessors,
-            device=device,
-            rank=rank,
-            data_name=data_name,
-        ) for data_name in valid_loaders
+        k: DataLoader(
+            dataset,
+            config.optimizer.batch_size,
+            sampler=valid_samplers[k],
+            prefetch_factor=2,
+            drop_last=False,
+            collate_fn=misc.collate_fn,
+            num_workers=config.optimizer.num_workers,
+            pin_memory=True,
+        )
+        for k, dataset in valid_datasets.items()
     }
 
-    excluded_keys = ["bbox"]
-    for name in ["loss_bbox", "loss_giou", "loss_ce"]:
-        for idx in range(6):
-            excluded_keys.append(f"{name}_{idx}")
-
-    train_hooks = [ProgressHook(name='train', excluded_keys=excluded_keys)]
-    valid_hooks = {data_name: [ProgressHook(name=data_name, excluded_keys=excluded_keys)] for data_name in validers}
-
-    if rank == 0:
-        train_hooks += [
-            TensorboardHook(name='train', save_dir='./', log_every_step=100),
-            TextLoggingHook(name='train', save_dir='./'),
-            CheckpointHook(save_every_epochs=getattr(config.exp, 'save_every_epochs', 1),
-                           save_every_iters=-1,
-                           save_dir='./',
-                           args=config),
-        ]
-        for data_name in valid_hooks:
-            valid_hooks[data_name] += [
-                TensorboardHook(name=data_name, save_dir='./', log_every_step=100),
-                TextLoggingHook(name=data_name, save_dir='./'),
-            ]
-
-    trainer.set_validers(validers)
-    trainer.register_hooks(train_hooks)
-    for data_name, valider in validers.items():
-        valider.register_hooks(valid_hooks[data_name])
-
-    if rank == 0:
-        trainer.hooks[trainer.hook_name2idx["TextLoggingHook"]].write(OmegaConf.to_yaml(config))
-    if getattr(config.exp, 'eval', False):
-        for data_name, valider in validers.items():
-            print(f"Evaluate {data_name}...")
-            valider.run_epoch(0)
-        return
-
-    print("start training..")
-    for lr_scheduler in schedulers:
-        lr_scheduler.step()
-    for epoch in range(start_epoch, config.optimizer.num_epochs):
-        train_sampler.set_epoch(epoch)
-        trainer.run_epoch(epoch)
-        for data_name, valider in validers.items():
-            print(f"Evaluate {data_name:<10} at epoch {epoch} ...")
-            valider.run_epoch(epoch)
-
-        for lr_scheduler in schedulers:
-            lr_scheduler.step()
+    train_detector_model(
+        model,
+        criterion,
+        postprocessors,
+        optimizers,
+        schedulers,
+        train_sampler,
+        train_loader,
+        valid_loaders,
+        rank,
+        device,
+        start_epoch,
+        config,
+    )
 
 
 @hydra.main(config_path="configs/detection", config_name="train_config")
