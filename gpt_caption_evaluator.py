@@ -1,51 +1,76 @@
+"""Utilities for scoring captions with GPT models."""
+
+from typing import Dict, List
 import argparse
 import json
 import os
-from typing import List, Dict
+
 import openai
 
 
-def evaluate_caption(caption: str, model: str = "gpt-4") -> float:
-    """Query GPT model to rate caption fluency from 1-10."""
-    prompt = (
-        "Rate the fluency of the following image caption on a scale of 1-10. "
-        "Only return the number.\nCaption: \"%s\"" % caption
-    )
+def _query_score(prompt: str, model: str = "gpt-4") -> float:
+    """Query OpenAI ChatCompletion API and return the numeric score."""
+
     response = openai.ChatCompletion.create(
         model=model,
         messages=[{"role": "user", "content": prompt}],
+        temperature=0.0,
+        max_tokens=1,
     )
     try:
-        score = float(response.choices[0].message["content"].strip())
-    except ValueError:
-        score = float("nan")
-    return score
+        return float(response["choices"][0]["message"]["content"].strip())
+    except (KeyError, ValueError):
+        return float("nan")
 
 
-def evaluate_file(path: str) -> List[Dict[str, float]]:
-    with open(path, "r", encoding="utf-8") as f:
-        captions = [line.strip() for line in f if line.strip()]
-    results = []
-    for caption in captions:
-        score = evaluate_caption(caption)
-        results.append({"caption": caption, "score": score})
-    return results
+def evaluate_with_gpt(captions: List[str], *, api_key: str | None = None) -> Dict[str, float]:
+    """Score multiple captions using GPT-4."""
 
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Evaluate caption fluency using GPT-4")
-    parser.add_argument("captions", help="Path to text file containing captions, one per line")
-    parser.add_argument("--output", default="gpt_scores.json", help="Output JSON file")
-    parser.add_argument("--api_key", default=None, help="OpenAI API key (or set OPENAI_API_KEY)")
-    args = parser.parse_args()
-
-    openai.api_key = args.api_key or os.getenv("OPENAI_API_KEY")
+    openai.api_key = api_key or os.getenv("OPENAI_API_KEY")
     if not openai.api_key:
         raise RuntimeError("OpenAI API key not provided")
 
-    results = evaluate_file(args.captions)
-    with open(args.output, "w", encoding="utf-8") as f:
-        json.dump(results, f, indent=2)
+    scores: Dict[str, float] = {}
+    for caption in captions:
+        prompt = (
+            "You are an expert image caption evaluator."
+            " Rate the following caption for grammar fluency and relevance on a 1-10 scale."
+            " Respond with only the number.\n\nCaption: "
+            f"{caption}\nRating:"
+        )
+        scores[caption] = _query_score(prompt)
+
+    return scores
+
+
+def evaluate_caption(caption: str, *, api_key: str | None = None) -> float:
+    """Convenience wrapper to score a single caption."""
+
+    return evaluate_with_gpt([caption], api_key=api_key)[caption]
+
+
+def evaluate_file(path: str, *, api_key: str | None = None) -> List[Dict[str, float]]:
+    """Evaluate captions stored line by line in ``path``."""
+
+    with open(path, "r", encoding="utf-8") as fh:
+        captions = [line.strip() for line in fh if line.strip()]
+
+    scores = evaluate_with_gpt(captions, api_key=api_key)
+    return [{"caption": c, "score": scores[c]} for c in captions]
+
+
+def main() -> None:
+    """CLI entry point for scoring captions in a text file."""
+
+    parser = argparse.ArgumentParser(description="Evaluate caption fluency using GPT-4")
+    parser.add_argument("captions", help="Path to text file with one caption per line")
+    parser.add_argument("--output", default="gpt_scores.json", help="Path to output JSON file")
+    parser.add_argument("--api_key", default=None, help="OpenAI API key (or set OPENAI_API_KEY)")
+    args = parser.parse_args()
+
+    results = evaluate_file(args.captions, api_key=args.api_key)
+    with open(args.output, "w", encoding="utf-8") as fh:
+        json.dump(results, fh, indent=2)
     print(f"Saved scores to {args.output}")
 
 
