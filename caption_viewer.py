@@ -16,10 +16,14 @@ def score_caption(caption: str, api_key: str, model: str = "gpt-4") -> float:
         "Rate the fluency of the following image caption on a scale of 1-10. "
         "Only return the number.\nCaption: \"%s\"" % caption
     )
-    response = openai.ChatCompletion.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-    )
+    try:
+        response = openai.ChatCompletion.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except openai.error.OpenAIError as e:
+        raise RuntimeError(f"OpenAI API request failed: {e}") from e
+
     return float(response.choices[0].message["content"].strip())
 
 
