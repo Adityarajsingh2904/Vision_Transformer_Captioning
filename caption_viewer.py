@@ -1,25 +1,12 @@
 import os
-import subprocess
 import tempfile
 from pathlib import Path
+
+from inference_caption import generate_caption
 
 import streamlit as st
 from PIL import Image
 import openai
-
-
-def generate_caption(image_path: str) -> str:
-    """Call inference_caption.py to generate a caption for the image."""
-    try:
-        result = subprocess.check_output([
-            "python",
-            "inference_caption.py",
-            f"img_path={image_path}",
-        ])
-        caption = result.decode("utf-8").strip().splitlines()[-1]
-    except subprocess.CalledProcessError as exc:
-        caption = f"Error generating caption: {exc}"
-    return caption
 
 
 def score_caption(caption: str, api_key: str, model: str = "gpt-4") -> float:

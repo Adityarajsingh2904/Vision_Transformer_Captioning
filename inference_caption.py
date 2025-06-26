@@ -1,5 +1,6 @@
 import os
 import hydra
+from hydra import compose, initialize
 import random
 import numpy as np
 from omegaconf import DictConfig
@@ -28,26 +29,28 @@ from datasets.caption.field import TextField
 from datasets.caption.transforms import get_transform
 from engine.utils import nested_tensor_from_tensor_list
 
-@hydra.main(config_path="configs/caption", config_name="coco_config")
-def run_main(config: DictConfig) -> None:
-    device = torch.device(f"cuda:0")
-    detector = build_detector(config).to(device)
-    model = Transformer(detector=detector, config=config)
-    model = model.to(device)
 
-    # load checkpoint
+def _inference_from_config(config: DictConfig) -> str:
+    """Run caption generation using the provided config and return the caption."""
+    device = torch.device("cuda:0")
+    detector = build_detector(config).to(device)
+    model = Transformer(detector=detector, config=config).to(device)
+
+    # load checkpoint if available
     if os.path.exists(config.exp.checkpoint):
-        checkpoint = torch.load(config.exp.checkpoint, map_location='cpu')
-        missing, unexpected = model.load_state_dict(checkpoint['state_dict'], strict=False)
+        checkpoint = torch.load(config.exp.checkpoint, map_location="cpu")
+        missing, unexpected = model.load_state_dict(
+            checkpoint["state_dict"], strict=False
+        )
         print(f"model missing:{len(missing)} model unexpected:{len(unexpected)}")
 
     model.cached_features = False
 
     # prepare utils
-    transform = get_transform(config.dataset.transform_cfg)['valid']
-    text_field = TextField(vocab_path= config.dataset.vocab_path)
+    transform = get_transform(config.dataset.transform_cfg)["valid"]
+    text_field = TextField(vocab_path=config.dataset.vocab_path)
 
-    rgb_image = Image.open(config.img_path).convert('RGB')
+    rgb_image = Image.open(config.img_path).convert("RGB")
     image = transform(rgb_image)
     images = nested_tensor_from_tensor_list([image]).to(device)
 
@@ -63,8 +66,19 @@ def run_main(config: DictConfig) -> None:
             out_size=1,
             return_probs=False,
         )
-        caption = text_field.decode(out, join_words=True)[0]
-        print(caption)
+    return text_field.decode(out, join_words=True)[0]
+
+
+def generate_caption(image_path: str) -> str:
+    """Utility function to generate a caption for a single image path."""
+    with initialize(config_path="configs/caption"):
+        cfg = compose(config_name="coco_config", overrides=[f"img_path={image_path}"])
+    return _inference_from_config(cfg)
+
+@hydra.main(config_path="configs/caption", config_name="coco_config")
+def run_main(config: DictConfig) -> None:
+    caption = _inference_from_config(config)
+    print(caption)
 
 
 if __name__ == "__main__":
