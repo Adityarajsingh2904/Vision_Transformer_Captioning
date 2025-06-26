@@ -50,6 +50,29 @@ cd Vision_Transformer_Captioning
 pip install -r requirements.txt
 ```
 
+## Training
+
+```bash
+python train_caption.py --cfg-path configs/coco_config.yaml
+```
+This command trains the Vision Transformer-based captioning model using the COCO dataset. Ensure dataset and config files are correctly placed.
+
+## Inference
+
+```bash
+python inference_caption.py --image path/to/image.jpg
+```
+This runs inference on a single image and outputs the generated caption. You can modify the output directory and checkpoint path inside the script or via config if supported.
+
+## Evaluation
+
+```bash
+python eval_caption.py --split val
+```
+Evaluates the model using standard metrics (BLEU, CIDEr, etc.) on the validation split.
+
+Ensure that the config paths and dataset setup in configs/ match your local environment before executing these commands.
+
 ---
 
 ## 🚀 Usage
