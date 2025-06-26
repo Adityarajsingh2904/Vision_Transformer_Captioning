@@ -1,0 +1,3 @@
+[submodule "full_repo"]
+path = full_repo
+url = https://github.com/Adityarajsingh2904/Vision_Transformer_Captioning

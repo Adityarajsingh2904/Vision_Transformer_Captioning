@@ -52,16 +52,20 @@ pip install -r requirements.txt
 
 ### Retrieve configs and dataset utilities
 
-The training scripts rely on configuration files under `configs/` and dataloader
-code inside `datasets/`. These directories are omitted here for brevity. Clone
-the original repository and copy them into this folder so that paths like
-`configs/caption/coco_config.yaml` resolve correctly:
+The `configs/` and `datasets/` directories are required for all training and
+inference scripts. They are provided in the upstream repository but omitted here
+to keep this example lightweight.
+
+You can link the upstream repository as a submodule and copy the folders:
 
 ```bash
-git clone https://github.com/Adityarajsingh2904/Vision_Transformer_Captioning.git full_repo
+git submodule add https://github.com/Adityarajsingh2904/Vision_Transformer_Captioning full_repo
 cp -r full_repo/configs ./configs
 cp -r full_repo/datasets ./datasets
 ```
+
+Alternatively, clone the repository manually and copy the directories if you do
+not wish to use submodules.
 
 ## Training
 
