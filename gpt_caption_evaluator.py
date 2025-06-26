@@ -11,12 +11,17 @@ import openai
 def _query_score(prompt: str, model: str = "gpt-4") -> float:
     """Query OpenAI ChatCompletion API and return the numeric score."""
 
-    response = openai.ChatCompletion.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.0,
-        max_tokens=1,
-    )
+    try:
+        response = openai.ChatCompletion.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+            max_tokens=1,
+        )
+    except openai.error.OpenAIError as e:
+        print(f"OpenAI API request failed: {e}")
+        return float("nan")
+
     try:
         return float(response["choices"][0]["message"]["content"].strip())
     except (KeyError, ValueError):
