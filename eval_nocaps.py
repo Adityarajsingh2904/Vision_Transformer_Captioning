@@ -41,7 +41,10 @@ def load_model(gpu, config):
 
 
 def run_inference(model, device, config):
-    data_path = '/home/quang/datasets/nocaps/updown-baseline/data'
+    data_root = os.environ.get("DATA_ROOT")
+    if not data_root:
+        raise EnvironmentError("DATA_ROOT environment variable must be set")
+    data_path = os.path.join(data_root, 'nocaps/updown-baseline/data')
     ann_path = os.path.join(data_path, 'nocaps/annotations/nocaps_val_image_info.json')
     root_path = os.path.join(data_path, 'val')
 
@@ -127,8 +130,8 @@ def run_main(config: DictConfig) -> None:
 
 
 if __name__ == "__main__":
-    if os.environ["USER"] == 'quang':
-        os.environ["DATA_ROOT"] = "/home/quang/datasets/coco_caption"
+    if os.environ.get("DATA_ROOT") is None:
+        raise EnvironmentError("DATA_ROOT environment variable must be set")
 
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = "6688"
