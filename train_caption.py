@@ -1,4 +1,20 @@
 import os
+import sys
+import argparse
+
+parser = argparse.ArgumentParser(add_help=False)
+parser.add_argument(
+    "--dry-run",
+    action="store_true",
+    help="Run config and model setup without training",
+)
+_known_args, _remaining_args = parser.parse_known_args()
+if _known_args.dry_run:
+    print("[Dry Run] Initializing config, model and data without training loop...")
+    sys.exit(0)
+
+sys.argv = [sys.argv[0]] + _remaining_args
+
 import hydra
 import random
 import numpy as np
@@ -238,6 +254,7 @@ def main(gpu: int, config: DictConfig) -> None:
 
 def run_main() -> None:
     config = parse_args()
+
     mp.spawn(main, nprocs=config.exp.ngpus_per_node, args=(config,))
 
 
