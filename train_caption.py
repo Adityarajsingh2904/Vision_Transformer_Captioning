@@ -192,6 +192,10 @@ def train_loop(model: DDP, config: DictConfig, device: torch.device, rank: int, 
                 config=config,
                 writer=writer,
             )
+            # build_coco_dataloaders (provided in the full dataset utilities) returns
+            # a sampler keyed as "train_dict" for self-critical training.  When the
+            # datasets submodule is absent, we cannot inspect this directly, but
+            # the training functions expect this key for updating the epoch.
             samplers["train_dict"].set_epoch(epoch)
 
         if rank == 0:
