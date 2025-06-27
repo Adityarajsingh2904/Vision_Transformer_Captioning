@@ -11,3 +11,4 @@ timm
 lmdb
 openai
 streamlit
+numpy
