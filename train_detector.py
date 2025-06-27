@@ -6,7 +6,6 @@ import os
 import random
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
 from models.detection.detector import build_detector
 
 from torch.utils.data import DataLoader, DistributedSampler
