@@ -27,7 +27,9 @@ from engine.utils import nested_tensor_from_tensor_list
 
 def _inference_from_config(config: DictConfig) -> str:
     """Run caption generation using the provided config and return the caption."""
-    device = torch.device("cuda:0")
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    if torch.cuda.is_available():
+        torch.cuda.set_device(0)
     detector = build_detector(config).to(device)
     model = Transformer(detector=detector, config=config).to(device)
 

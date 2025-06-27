@@ -223,14 +223,18 @@ def main(gpu, config, overrides):
             f.write(f'{git_info}')
         os.system(f"rm {os.path.join(proj_dir, config.exp.git_file)}")
 
-    torch.distributed.init_process_group(backend='nccl',
+    backend = 'nccl' if torch.cuda.is_available() else 'gloo'
+    torch.distributed.init_process_group(backend=backend,
                                          init_method='env://',
                                          rank=rank,
                                          world_size=config.exp.world_size)
     print(f"Initialize: {rank}/{dist.get_world_size()}.")
 
-    device = "cuda"
-    torch.cuda.set_device(gpu)
+    if torch.cuda.is_available():
+        device = torch.device(f"cuda:{gpu}")
+        torch.cuda.set_device(gpu)
+    else:
+        device = torch.device("cpu")
 
     # fix the seed for reproducibility
     seed = config.exp.seed + get_rank()
@@ -245,7 +249,8 @@ def main(gpu, config, overrides):
     criterion.to(device)
 
     print("create dist model")
-    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[gpu], find_unused_parameters=True)
+    ddp_args = {"device_ids": [gpu]} if torch.cuda.is_available() else {}
+    model = torch.nn.parallel.DistributedDataParallel(model, find_unused_parameters=True, **ddp_args)
     model_without_ddp = model.module
     optimizers, schedulers = build_optimizers_schedulers(model_without_ddp, config)
 

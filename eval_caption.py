@@ -19,14 +19,18 @@ from engine.caption_engine import *
 def main(gpu, config):
     # dist init
     torch.backends.cudnn.enabled = False
-    dist.init_process_group('nccl', 'env://', rank=0, world_size=1)
+    backend = 'nccl' if torch.cuda.is_available() else 'gloo'
+    dist.init_process_group(backend, 'env://', rank=0, world_size=1)
 
     torch.manual_seed(config.exp.seed)
     np.random.seed(config.exp.seed)
     random.seed(config.exp.seed)
 
-    device = torch.device(f"cuda:{gpu}")
-    torch.cuda.set_device(gpu)
+    if torch.cuda.is_available():
+        device = torch.device(f"cuda:{gpu}")
+        torch.cuda.set_device(gpu)
+    else:
+        device = torch.device("cpu")
 
     # extract reg features + initial grid features
     detector = build_detector(config).to(device)
@@ -35,7 +39,8 @@ def main(gpu, config):
     model.load_state_dict(torch.load(config.exp.checkpoint)['state_dict'], strict=False)
     model = model.to(device)
 
-    model = DDP(model, device_ids=[gpu], find_unused_parameters=True, broadcast_buffers=False)
+    ddp_args = {"device_ids": [gpu]} if torch.cuda.is_available() else {}
+    model = DDP(model, find_unused_parameters=True, broadcast_buffers=False, **ddp_args)
 
     dataloaders, samplers = build_coco_dataloaders(config, mode='finetune', device=device)
 
