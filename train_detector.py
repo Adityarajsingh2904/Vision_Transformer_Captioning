@@ -223,18 +223,18 @@ def main(gpu, config, overrides):
             f.write(f'{git_info}')
         os.system(f"rm {os.path.join(proj_dir, config.exp.git_file)}")
 
-    backend = 'nccl' if torch.cuda.is_available() else 'gloo'
-    torch.distributed.init_process_group(backend=backend,
-                                         init_method='env://',
-                                         rank=rank,
-                                         world_size=config.exp.world_size)
-    print(f"Initialize: {rank}/{dist.get_world_size()}.")
-
-    if torch.cuda.is_available():
-        device = torch.device(f"cuda:{gpu}")
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    if device.type == "cuda":
         torch.cuda.set_device(gpu)
-    else:
-        device = torch.device("cpu")
+
+    backend = 'nccl' if device.type == 'cuda' else 'gloo'
+    torch.distributed.init_process_group(
+        backend=backend,
+        init_method='env://',
+        rank=rank,
+        world_size=config.exp.world_size
+    )
+    print(f"Initialize: {rank}/{dist.get_world_size()}.")
 
     # fix the seed for reproducibility
     seed = config.exp.seed + get_rank()

@@ -243,19 +243,19 @@ def main(gpu: int, config: DictConfig) -> None:
     """Entry point for each spawned process."""
 
     torch.backends.cudnn.enabled = False
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    if device.type == "cuda":
+        torch.cuda.set_device(gpu)
+
     rank = config.exp.rank * config.exp.ngpus_per_node + gpu
-    backend = "nccl" if torch.cuda.is_available() else "gloo"
+    backend = "nccl" if device.type == "cuda" else "gloo"
     dist.init_process_group(backend, "env://", rank=rank, world_size=config.exp.world_size)
 
     torch.manual_seed(config.exp.seed)
     np.random.seed(config.exp.seed)
     random.seed(config.exp.seed)
 
-    if torch.cuda.is_available():
-        device = torch.device(f"cuda:{gpu}")
-        torch.cuda.set_device(gpu)
-    else:
-        device = torch.device("cpu")
+    # device already defined above
 
     model = build_model(config, device, gpu, rank)
     train_loop(model, config, device, rank, gpu)
