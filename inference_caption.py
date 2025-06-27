@@ -8,24 +8,19 @@ from omegaconf import DictConfig
 from datasets.caption.field import TextField
 from datasets.caption.coco import build_coco_dataloaders
 from models.caption import Transformer
-from models.caption.detector import build_detector
-
 import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
 from torch.nn.parallel import DistributedDataParallel as DDP
 from engine.caption_engine import *
 
-import torch
-
 # model
 from models.common.attention import MemoryAttention
 from models.caption.detector import build_detector
-from models.caption import Transformer, GridFeatureNetwork, CaptionGenerator
+from models.caption import GridFeatureNetwork, CaptionGenerator
 
 # dataset
 from PIL import Image
-from datasets.caption.field import TextField
 from datasets.caption.transforms import get_transform
 from engine.utils import nested_tensor_from_tensor_list
 
