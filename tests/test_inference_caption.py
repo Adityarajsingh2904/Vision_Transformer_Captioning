@@ -1,5 +1,5 @@
 from contextlib import nullcontext
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from unittest import mock
 import sys
 
@@ -17,9 +17,15 @@ def _add_stub(name: str) -> ModuleType:
     return module
 
 # Stub out heavy or missing dependencies before importing the module under test
+sys.modules.setdefault("omegaconf", SimpleNamespace(DictConfig=object))
+sys.modules.setdefault(
+    "PIL", SimpleNamespace(Image=SimpleNamespace(open=lambda *a, **k: None))
+)
+
 for mod in [
     "hydra",
     "numpy",
+    "omegaconf",
     "datasets",
     "datasets.caption",
     "datasets.caption.field",
@@ -38,8 +44,10 @@ for mod in [
     "torch.multiprocessing",
     "torch.nn",
     "torch.nn.parallel",
+    "PIL",
 ]:
     _add_stub(mod)
+
 
 # Provide simple behavior for attributes accessed during import
 sys.modules["hydra"].initialize = lambda *a, **k: nullcontext()
