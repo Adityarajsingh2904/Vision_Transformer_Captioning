@@ -41,7 +41,7 @@ def evaluate_with_gpt(captions: List[str], *, api_key: str | None = None) -> Dic
             "You are an expert image caption evaluator."
             " Rate the following caption for grammar fluency and relevance on a 1-10 scale."
             " Respond with only the number.\n\nCaption: "
-            f"{caption}\nRating:"
+            f"{caption}"
         )
         scores[caption] = _query_score(prompt)
 
