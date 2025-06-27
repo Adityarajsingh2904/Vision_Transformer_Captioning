@@ -24,8 +24,11 @@ from engine.caption_engine import *
 
 
 def load_model(gpu, config):
-    device = torch.device(f"cuda:{gpu}")
-    torch.cuda.set_device(gpu)
+    if torch.cuda.is_available():
+        device = torch.device(f"cuda:{gpu}")
+        torch.cuda.set_device(gpu)
+    else:
+        device = torch.device("cpu")
 
     detector = build_detector(config).to(device)
     model = Transformer(detector=detector, config=config).to(device)
@@ -35,7 +38,8 @@ def load_model(gpu, config):
         missing, unexpected = model.load_state_dict(checkpoint["state_dict"], strict=False)
         print(f"model missing:{len(missing)} model unexpected:{len(unexpected)}")
 
-    model = DDP(model, device_ids=[gpu], find_unused_parameters=True, broadcast_buffers=False)
+    ddp_args = {"device_ids": [gpu]} if torch.cuda.is_available() else {}
+    model = DDP(model, find_unused_parameters=True, broadcast_buffers=False, **ddp_args)
     model.module.cached_features = False
     return model, device
 
@@ -79,7 +83,8 @@ def run_inference(model, device, config):
                     out_size=1,
                     return_probs=False,
                 )
-            torch.cuda.synchronize()
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
             end_it = time.time()
             times.append(end_it - start_it)
 
@@ -111,7 +116,8 @@ def compute_metrics(results, split='val'):
 def main(gpu, config):
     torch.backends.cudnn.enabled = False
     rank = config.exp.rank * config.exp.ngpus_per_node + gpu
-    dist.init_process_group('nccl', 'env://', rank=rank, world_size=config.exp.world_size)
+    backend = 'nccl' if torch.cuda.is_available() else 'gloo'
+    dist.init_process_group(backend, 'env://', rank=rank, world_size=config.exp.world_size)
 
     torch.manual_seed(config.exp.seed)
     np.random.seed(config.exp.seed)

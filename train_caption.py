@@ -68,7 +68,8 @@ def build_model(config: DictConfig, device: torch.device, gpu: int, rank: int) -
         else:
             extract_vis_features(detector, config, device, rank)
 
-    model = DDP(model, device_ids=[gpu], find_unused_parameters=True, broadcast_buffers=False)
+    ddp_args = {"device_ids": [gpu]} if torch.cuda.is_available() else {}
+    model = DDP(model, find_unused_parameters=True, broadcast_buffers=False, **ddp_args)
     return model
 
 
@@ -243,14 +244,18 @@ def main(gpu: int, config: DictConfig) -> None:
 
     torch.backends.cudnn.enabled = False
     rank = config.exp.rank * config.exp.ngpus_per_node + gpu
-    dist.init_process_group("nccl", "env://", rank=rank, world_size=config.exp.world_size)
+    backend = "nccl" if torch.cuda.is_available() else "gloo"
+    dist.init_process_group(backend, "env://", rank=rank, world_size=config.exp.world_size)
 
     torch.manual_seed(config.exp.seed)
     np.random.seed(config.exp.seed)
     random.seed(config.exp.seed)
 
-    device = torch.device(f"cuda:{gpu}")
-    torch.cuda.set_device(gpu)
+    if torch.cuda.is_available():
+        device = torch.device(f"cuda:{gpu}")
+        torch.cuda.set_device(gpu)
+    else:
+        device = torch.device("cpu")
 
     model = build_model(config, device, gpu, rank)
     train_loop(model, config, device, rank, gpu)
