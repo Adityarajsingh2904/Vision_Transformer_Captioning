@@ -1,0 +1,16 @@
+{
+  "name": "vision_transformer_captioning",
+  "version": "1.0.0",
+  "description": "**Vision_Transformer_Captioning** is a deep learning pipeline for generating descriptive captions from images using a Vision Transformer-based architecture.   It combines object detection with transformer-based language modeling to generate human-like textual descriptions from visual data.",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}

@@ -251,11 +251,9 @@ def main(gpu: int, config: DictConfig) -> None:
     np.random.seed(config.exp.seed)
     random.seed(config.exp.seed)
 
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     if torch.cuda.is_available():
-        device = torch.device(f"cuda:{gpu}")
         torch.cuda.set_device(gpu)
-    else:
-        device = torch.device("cpu")
 
     model = build_model(config, device, gpu, rank)
     train_loop(model, config, device, rank, gpu)

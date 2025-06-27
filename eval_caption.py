@@ -26,11 +26,9 @@ def main(gpu, config):
     np.random.seed(config.exp.seed)
     random.seed(config.exp.seed)
 
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     if torch.cuda.is_available():
-        device = torch.device(f"cuda:{gpu}")
         torch.cuda.set_device(gpu)
-    else:
-        device = torch.device("cpu")
 
     # extract reg features + initial grid features
     detector = build_detector(config).to(device)

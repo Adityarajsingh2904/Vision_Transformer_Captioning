@@ -230,11 +230,9 @@ def main(gpu, config, overrides):
                                          world_size=config.exp.world_size)
     print(f"Initialize: {rank}/{dist.get_world_size()}.")
 
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     if torch.cuda.is_available():
-        device = torch.device(f"cuda:{gpu}")
         torch.cuda.set_device(gpu)
-    else:
-        device = torch.device("cpu")
 
     # fix the seed for reproducibility
     seed = config.exp.seed + get_rank()

@@ -24,11 +24,9 @@ from engine.caption_engine import *
 
 
 def load_model(gpu, config):
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     if torch.cuda.is_available():
-        device = torch.device(f"cuda:{gpu}")
         torch.cuda.set_device(gpu)
-    else:
-        device = torch.device("cpu")
 
     detector = build_detector(config).to(device)
     model = Transformer(detector=detector, config=config).to(device)
