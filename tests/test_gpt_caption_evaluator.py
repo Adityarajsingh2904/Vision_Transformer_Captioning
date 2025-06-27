@@ -1,4 +1,10 @@
 from unittest import mock
+import sys
+from types import SimpleNamespace
+
+sys.modules.setdefault(
+    "openai", SimpleNamespace(ChatCompletion=SimpleNamespace(create=lambda *a, **k: None))
+)
 
 import gpt_caption_evaluator as gce
 

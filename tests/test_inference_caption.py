@@ -19,6 +19,7 @@ def _add_stub(name: str) -> ModuleType:
 # Stub out heavy or missing dependencies before importing the module under test
 for mod in [
     "hydra",
+    "numpy",
     "datasets",
     "datasets.caption",
     "datasets.caption.field",
